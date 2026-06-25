@@ -142,7 +142,7 @@ function renderDetail(){
     <div class="card"><span class="badge" style="background:${col.bg};color:${col.c}">${col.ru} ${col.cn}</span></div>
     <div class="card"><div class="cs-title">Задание / 任务</div><div style="font-size:14px;white-space:pre-wrap;line-height:1.7">${t.description||'—'}</div></div>
     ${t.result_link?`<div class="card" style="border-color:rgba(48,209,88,.4)"><div class="cs-title">Расчёт / 计算</div><a href="${t.result_link}" target="_blank" style="color:var(--gt);font-size:14px;font-weight:600;word-break:break-all">🔗 Открыть / 打开</a></div>`:''}
-    ${t.attachments&&t.attachments.length?`<div class="card"><div class="cs-title">Файлы / 文件</div>${t.attachments.map(a=>`<a href="${a.url}" target="_blank" style="display:block;color:var(--ac);font-size:13px;padding:6px 0;border-bottom:var(--bd)">📎 ${a.name||'Файл'}</a>`).join('')}</div>`:''}
+    ${t.attachments&&t.attachments.length?`<div class="card"><div class="cs-title">Файлы / 文件</div>${(()=>{const imgs=t.attachments.filter(a=>a.type&&a.type.startsWith('image'));const files=t.attachments.filter(a=>!a.type||!a.type.startsWith('image'));return(imgs.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+imgs.map((a,i)=>'<div><img src="'+a.url+'" onclick="openAttachLB('+t.id+','+i+')" style="width:80px;height:80px;object-fit:cover;border-radius:10px;cursor:zoom-in;border:1px solid #3a3a3c"><div style="font-size:9px;color:#636366;text-align:center;margin-top:2px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.name||'')+'</div></div>').join('')+'</div>':'')+(files.length?files.map(a=>{const isPdf=a.name&&a.name.toLowerCase().endsWith('.pdf');const viewUrl=isPdf?a.url.replace('/upload/','/upload/fl_inline/'):a.url;return'<a href="'+viewUrl+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#2c2c2e;border-radius:8px;margin-bottom:6px;color:#0a84ff;font-size:13px;text-decoration:none">'+(isPdf?'📄':'📎')+' '+(a.name||'Файл')+'</a>';}).join(''):'');})()}</div>`:''}
     ${t.photos&&t.photos.length?`<div class="card"><div class="cs-title">Мои фото / 我的照片</div><div style="display:flex;gap:8px;flex-wrap:wrap">${t.photos.map((url,i)=>`<img class="thumb" src="${url}" onclick="openLB(${i})">`).join('')}</div></div>`:''}
     ${btns?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${btns}</div>`:''}
     <div class="card"><div class="cs-title">Добавить фото / 添加照片</div><button class="btn btn-s" onclick="uploadPhotos()" style="font-size:13px">📷 Фото</button></div>
@@ -211,6 +211,13 @@ async function uploadPhotos(){
 }
 
 let lbPhotos=[];
+function openAttachLB(taskId,idx){
+  const t=tasks.find(x=>x.id===taskId);
+  if(!t||!t.attachments)return;
+  const imgs=t.attachments.filter(a=>a.type&&a.type.startsWith('image')).map(a=>a.url);
+  document.getElementById('lb-img').src=imgs[idx];
+  document.getElementById('lightbox').classList.add('show');
+}
 function openLB(i){if(!curTask?.photos)return;lbPhotos=curTask.photos;document.getElementById('lb-img').src=lbPhotos[i];document.getElementById('lightbox').classList.add('show');}
 function closeLightbox(){document.getElementById('lightbox').classList.remove('show');}
 
