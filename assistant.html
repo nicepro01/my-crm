@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>助手任务 / Задания</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0a0a0a;--sf:#1c1c1e;--s2:#2c2c2e;--s3:#3a3a3c;--t1:#fff;--t2:#ababab;--t3:#636366;--bd:.5px solid #3a3a3c;--bd2:1px solid #48484a;--ac:#0a84ff;--gt:#30d158;--rd:#ff453a;--or:#ff9f0a;--rs:12px}
+body{background:var(--bg);color:var(--t1);font-family:-apple-system,BlinkMacSystemFont,'SF Pro',sans-serif;min-height:100vh;overflow-x:hidden}
+.tb{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:var(--bd);position:sticky;top:0;background:var(--bg);z-index:10}
+.tb-title{font-size:17px;font-weight:700;flex:1}
+.tb-back{background:none;border:none;color:var(--ac);font-size:15px;cursor:pointer;padding:4px 8px}
+.kanban{display:flex;gap:10px;padding:14px;overflow-x:auto;min-height:calc(100vh - 60px);align-items:flex-start}
+.col{background:var(--sf);border-radius:14px;min-width:220px;width:220px;flex-shrink:0;border:var(--bd)}
+.col-head{padding:11px 13px;border-bottom:var(--bd);display:flex;align-items:center;justify-content:space-between}
+.col-title{font-size:13px;font-weight:700}
+.col-cn{font-size:11px;color:var(--t3)}
+.col-count{background:var(--s3);color:var(--t2);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+.col-body{padding:10px;display:flex;flex-direction:column;gap:8px;min-height:60px}
+.kcard{background:var(--s2);border-radius:10px;padding:11px;cursor:pointer;border:var(--bd)}
+.kcard-title{font-size:13px;font-weight:600;margin-bottom:5px;line-height:1.3}
+.kcard-sub{font-size:11px;color:var(--t3);margin-top:4px}
+.screen{display:none;position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:50}
+.screen.active{display:block}
+.content{padding:14px;max-width:600px;margin:0 auto}
+.card{background:var(--sf);border-radius:14px;padding:14px;margin-bottom:12px;border:var(--bd)}
+.cs-title{font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.badge{display:inline-block;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:600}
+.btn{padding:9px 18px;border-radius:20px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit}
+.btn-p{background:var(--ac);color:#fff}
+.btn-s{background:var(--s3);color:var(--t1)}
+.btn-g{background:rgba(48,209,88,.15);color:var(--gt)}
+.btn-r{background:rgba(255,69,58,.12);color:var(--rd)}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:12px;color:var(--t2);margin-bottom:5px;font-weight:500}
+.fg input,.fg textarea{width:100%;padding:10px 13px;border:var(--bd2);border-radius:10px;background:var(--s2);color:var(--t1);font-size:14px;font-family:inherit;resize:vertical}
+.fg textarea{min-height:80px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:flex-end}
+.modal-bg.show{display:flex}
+.modal{background:var(--sf);border-radius:18px 18px 0 0;padding:20px;width:100%;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:16px}
+.mact{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+.msg{padding:10px 0;border-bottom:var(--bd)}
+.msg:last-child{border-bottom:none}
+.msg-meta{font-size:10px;color:var(--t3);margin-bottom:3px}
+.msg-text{font-size:13px;white-space:pre-wrap;line-height:1.5}
+.msg.mgr .msg-text{color:var(--ac)}
+img.thumb{width:80px;height:80px;object-fit:cover;border-radius:10px;cursor:zoom-in}
+#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out}
+#lightbox.show{display:flex}
+#lightbox img{max-width:95vw;max-height:92vh;object-fit:contain;border-radius:10px}
+.lb-x{position:fixed;top:16px;right:16px;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:20px;width:40px;height:40px;border-radius:50%;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="s-kanban">
+  <div class="tb">
+    <div class="tb-title">📋 Задания / 任务</div>
+    <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--s3);transition:background .3s"></div>
+  </div>
+  <div class="kanban" id="kanban-board"></div>
+</div>
+
+<div class="screen" id="s-detail">
+  <div class="tb">
+    <button class="tb-back" onclick="backToKanban()">‹ Назад</button>
+    <div class="tb-title" id="detail-title" style="font-size:15px"></div>
+  </div>
+  <div class="content" id="detail-content"></div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lb-img">
+  <button class="lb-x" onclick="closeLightbox()">✕</button>
+</div>
+
+<script>
+const SB_URL='https://veydnbxsobptzsvbtxso.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZleWRuYnhzb2JwdHpzdmJ0eHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDQyNTEsImV4cCI6MjA5NzcyMDI1MX0.JzZdsL3fTvVveh7d71l8wojs9q9tTcVClSncGBPy3lM';
+const CLD='dnz0oai3c',PRE='123456';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+let tasks=[],curTask=null;
+
+const COLS=[
+  {k:'new',         ru:'🆕 Новое',     cn:'新任务', bg:'var(--s3)',               c:'var(--t2)'},
+  {k:'in_progress', ru:'⚡ В работе',  cn:'进行中',  bg:'rgba(0,122,255,.2)',      c:'var(--ac)'},
+  {k:'done',        ru:'✅ Выполнено', cn:'已完成',  bg:'rgba(48,209,88,.2)',      c:'var(--gt)'},
+  {k:'problem',     ru:'⚠️ Проблема', cn:'有问题',   bg:'rgba(255,69,58,.15)',     c:'var(--rd)'},
+];
+
+function ts(t){const d=new Date(t);return d.toLocaleDateString('ru',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});}
+function dot(s){document.getElementById('sync-dot').style.background=s==='ok'?'var(--gt)':s==='err'?'var(--rd)':'var(--or)';}
+
+async function load(){
+  dot('...');
+  const{data,error}=await sb.from('assistant_tasks').select('*').order('created_at',{ascending:false});
+  if(!error&&data){tasks=data;renderKanban();dot('ok');}else dot('err');
+}
+
+function renderKanban(){
+  document.getElementById('kanban-board').innerHTML=COLS.map(col=>{
+    const ts2=tasks.filter(t=>t.status===col.k);
+    return`<div class="col">
+      <div class="col-head"><div><div class="col-title">${col.ru}</div><div class="col-cn">${col.cn}</div></div><span class="col-count">${ts2.length}</span></div>
+      <div class="col-body">${ts2.map(t=>`<div class="kcard" onclick="openTask(${t.id})">
+        <div class="kcard-title">${t.title}</div>
+        ${t.result_link?'<div style="font-size:11px;color:var(--gt)">🔗 Расчёт</div>':''}
+        ${t.photos&&t.photos.length?`<div style="font-size:11px;color:var(--t3)">📷 ${t.photos.length}</div>`:''}
+        ${t.comments&&t.comments.length?`<div style="font-size:11px;color:var(--t3)">💬 ${t.comments.length}</div>`:''}
+        <div class="kcard-sub">${ts(new Date(t.created_at).getTime())}</div>
+      </div>`).join('')||'<div style="font-size:12px;color:var(--t3);text-align:center;padding:16px 0">空 / Пусто</div>'}
+      </div></div>`;
+  }).join('');
+}
+
+function openTask(id){
+  curTask=tasks.find(x=>x.id===id);
+  if(!curTask)return;
+  document.getElementById('detail-title').textContent=curTask.title;
+  renderDetail();
+  document.getElementById('s-detail').classList.add('active');
+}
+
+function renderDetail(){
+  const t=curTask;if(!t)return;
+  const col=COLS.find(c=>c.k===t.status)||COLS[0];
+  let btns='';
+  if(t.status==='new') btns=`<button class="btn btn-p" onclick="setStatus('in_progress')" style="font-size:13px">⚡ Начать / 开始</button>`;
+  else if(t.status==='in_progress') btns=`<button class="btn btn-g" onclick="openDoneModal()" style="font-size:13px">✅ Выполнено / 完成</button> <button class="btn btn-r" onclick="setStatus('problem')" style="font-size:13px">⚠️ Проблема</button>`;
+  else if(t.status==='problem') btns=`<button class="btn btn-p" onclick="setStatus('in_progress')" style="font-size:13px">↩️ В работу</button>`;
+
+  document.getElementById('detail-content').innerHTML=`
+    <div class="card"><span class="badge" style="background:${col.bg};color:${col.c}">${col.ru} ${col.cn}</span></div>
+    <div class="card"><div class="cs-title">Задание / 任务</div><div style="font-size:14px;white-space:pre-wrap;line-height:1.7">${t.description||'—'}</div></div>
+    ${t.result_link?`<div class="card" style="border-color:rgba(48,209,88,.4)"><div class="cs-title">Расчёт / 计算</div><a href="${t.result_link}" target="_blank" style="color:var(--gt);font-size:14px;font-weight:600;word-break:break-all">🔗 Открыть / 打开</a></div>`:''}
+    ${t.attachments&&t.attachments.length?`<div class="card"><div class="cs-title">Файлы / 文件</div>${t.attachments.map(a=>`<a href="${a.url}" target="_blank" style="display:block;color:var(--ac);font-size:13px;padding:6px 0;border-bottom:var(--bd)">📎 ${a.name||'Файл'}</a>`).join('')}</div>`:''}
+    ${t.photos&&t.photos.length?`<div class="card"><div class="cs-title">Мои фото / 我的照片</div><div style="display:flex;gap:8px;flex-wrap:wrap">${t.photos.map((url,i)=>`<img class="thumb" src="${url}" onclick="openLB(${i})">`).join('')}</div></div>`:''}
+    ${btns?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${btns}</div>`:''}
+    <div class="card"><div class="cs-title">Добавить фото / 添加照片</div><button class="btn btn-s" onclick="uploadPhotos()" style="font-size:13px">📷 Фото</button></div>
+    <div class="card">
+      <div class="cs-title">Чат / 聊天 ${t.comments&&t.comments.length?'('+t.comments.length+')':''}</div>
+      ${t.comments&&t.comments.length?t.comments.map(c=>`<div class="msg ${c.author==='manager'?'mgr':''}"><div class="msg-meta">${ts(c.ts)} · ${c.author==='manager'?'👔 Менеджер':'👷 Я'}</div><div class="msg-text">${c.text}</div></div>`).join(''):'<div style="font-size:13px;color:var(--t3);padding:8px 0">Нет сообщений</div>'}
+      <div style="margin-top:12px"><textarea id="my-msg" placeholder="Сообщение / 消息..." style="width:100%;padding:10px;border:var(--bd2);border-radius:10px;background:var(--s2);color:var(--t1);font-size:14px;font-family:inherit;resize:none;min-height:70px"></textarea></div>
+      <div style="margin-top:8px"><button class="btn btn-p" onclick="sendMsg()" style="font-size:13px">📨 Отправить / 发送</button></div>
+    </div>`;
+}
+
+function backToKanban(){document.getElementById('s-detail').classList.remove('active');curTask=null;}
+
+async function setStatus(s){
+  if(!curTask)return;showToast('⏳...');
+  await sb.from('assistant_tasks').update({status:s,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Готово');
+}
+
+function openDoneModal(){
+  showModal(`<h3>✅ Выполнено / 完成</h3>
+    <div class="fg"><label>Ссылка на расчёт / 计算链接</label><input id="rl" placeholder="https://docs.google.com/..." value="${curTask?.result_link||''}"></div>
+    <div class="fg"><label>Комментарий / 备注</label><textarea id="rc" placeholder="Что нашёл..."></textarea></div>
+    <div class="mact"><button class="btn btn-s" onclick="closeModal()">Отмена</button><button class="btn btn-g" onclick="submitDone()">✅ Подтвердить</button></div>`);
+}
+
+async function submitDone(){
+  const link=document.getElementById('rl')?.value.trim()||'';
+  const comment=document.getElementById('rc')?.value.trim()||'';
+  if(!curTask)return;
+  const comments=[...(curTask.comments||[])];
+  if(comment)comments.push({text:comment,ts:Date.now(),author:'assistant'});
+  closeModal();showToast('⏳ Отправляю...');
+  await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();
+  showToast('🎉 Менеджер получил результат!');
+}
+
+async function sendMsg(){
+  const text=document.getElementById('my-msg')?.value.trim();
+  if(!text||!curTask)return;
+  const comments=[...(curTask.comments||[]),{text,ts:Date.now(),author:'assistant'}];
+  showToast('⏳...');
+  await sb.from('assistant_tasks').update({comments,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅');
+}
+
+async function uploadPhotos(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.addEventListener('change',async e=>{
+    const files=[...e.target.files];document.body.removeChild(inp);
+    if(!files.length||!curTask)return;
+    showToast('⬆️ Загружаю...');
+    const photos=[...(curTask.photos||[])];
+    for(const f of files){
+      try{const fd=new FormData();fd.append('file',f);fd.append('upload_preset',PRE);fd.append('folder','crm-assistant');
+        const r=await fetch(`https://api.cloudinary.com/v1_1/${CLD}/image/upload`,{method:'POST',body:fd});
+        const d=await r.json();if(d.secure_url)photos.push(d.secure_url);
+      }catch(e){console.error(e);}
+    }
+    await sb.from('assistant_tasks').update({photos,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+    await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Фото загружено!');
+  });
+  inp.click();
+}
+
+let lbPhotos=[];
+function openLB(i){if(!curTask?.photos)return;lbPhotos=curTask.photos;document.getElementById('lb-img').src=lbPhotos[i];document.getElementById('lightbox').classList.add('show');}
+function closeLightbox(){document.getElementById('lightbox').classList.remove('show');}
+
+function showModal(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal-bg').classList.add('show');}
+function closeModal(){document.getElementById('modal-bg').classList.remove('show');}
+
+let _tt;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2500);}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();});
+
+setInterval(async()=>{await load();if(curTask){curTask=tasks.find(x=>x.id===curTask.id);if(curTask)renderDetail();}},20000);
+
+load();
+</script>
+</body>
+</html>
