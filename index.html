@@ -1189,8 +1189,8 @@ function renderAssistantTasks(){
   </div>
   <div style="margin-bottom:10px"><button class="pb pb-p pb-sm" onclick="openAddAssistantTask()">+ Новое задание</button></div>
   ${filtered.length?filtered.map(t=>`<div class="card" style="margin-bottom:10px;overflow:hidden">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-      <div style="flex:1;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:4px 0">
+      <div style="flex:1;min-width:0;padding-right:8px">
         <div style="font-size:15px;font-weight:600;margin-bottom:6px;padding-right:4px;word-break:break-word">${t.title}</div>
         <span style="background:${AS_STATUS[t.status]?.bg||'var(--s3)'};color:${AS_STATUS[t.status]?.c||'var(--t2)'};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600">${AS_STATUS[t.status]?.l||t.status}</span>
         ${t.description?`<div style="font-size:13px;color:var(--t2);margin-top:8px;white-space:pre-wrap;word-break:break-word">${t.description}</div>`:''}
