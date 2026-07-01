@@ -1320,8 +1320,8 @@ async function submitSendToAssistant(sourceType){
     : db.work.clients.find(x=>x.id===curClient)?.orders.find(x=>x.id===curOrder);
   const sourceName=sourceType==='lead'
     ? (db.work.leads.find(x=>x.id===curLead)?.name||'Лид')
-    : (db.work.clients.find(x=>x.id===curClient)?.name+' / '+(source?.name||'Заказ'));
-  const title=`${sourceName} — ${sourceType==='lead'?'Лид':'Заказ'}`;
+    : ((db.work.clients.find(x=>x.id===curClient)?.clientId||'')+'  '+( db.work.clients.find(x=>x.id===curClient)?.name||'')+' / '+(source?.name||'Заказ'));
+  const title=`${sourceName} — ${sourceType==='lead'?'Лид':''}`.trim();
 
   closeModal();showToast('⏳ Отправляю задание...');
 
