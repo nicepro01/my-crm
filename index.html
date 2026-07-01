@@ -1410,28 +1410,56 @@ async function checkAssistantResults(){
   if(!_sb)return;
   const{data}=await _sb.from('assistant_tasks').select('*').eq('status','done');
   if(!data)return;
+  let changed=false;
   data.forEach(t=>{
+    // Build assistant comments for import
+    const aComments=(t.comments||[]).filter(c=>c.author==='assistant').map(c=>({
+      text:'🤝 Ассистент: '+c.text, ts:c.ts
+    }));
+    // Build photos from assistant
+    const aPhotos=[...(t.photos||[])];
+    const resultLink=t.result_link||'';
+
     if(t.source_type==='lead'){
       const l=db.work.leads.find(x=>x.assistantTaskId===t.id);
       if(l&&l.stage===4){
-        l.stage=5; // Товар найден
-        l.assistantResult={link:t.result_link,photos:t.photos,attachments:t.attachments};
+        l.stage=5;
+        l.assistantResult={link:resultLink,photos:aPhotos,attachments:t.attachments};
+        // Copy result link to kpLink for КП готово stage
+        if(resultLink)l.kpLink=resultLink;
+        // Copy photos
+        if(aPhotos.length){if(!l.photos)l.photos=[];aPhotos.forEach(u=>{if(!l.photos.includes(u))l.photos.push(u);});}
+        // Copy comments
+        if(aComments.length){if(!l.comments)l.comments=[];aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);});}
         if(!l.stageLog)l.stageLog=[];
-        l.stageLog.push({from:4,to:5,ts:Date.now(),note:'Товар найден ассистентом'+(t.result_link?' 🔗':' ')});
-        saveDB();
+        l.stageLog.push({from:4,to:5,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
+        changed=true;
+      }else if(l&&l.stage===5){
+        // Already moved — update photos/comments/link if new
+        if(resultLink&&!l.kpLink)l.kpLink=resultLink;
+        if(aPhotos.length){if(!l.photos)l.photos=[];aPhotos.forEach(u=>{if(!l.photos.includes(u))l.photos.push(u);});changed=true;}
+        if(aComments.length){if(!l.comments)l.comments=[];const before=l.comments.length;aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);});if(l.comments.length!==before)changed=true;}
       }
     }else if(t.source_type==='order'){
       const c=db.work.clients.find(x=>x.id===t.client_id);
       const o=c?.orders.find(x=>x.assistantTaskId===t.id);
       if(o&&o.stage===0){
-        o.stage=1; // Товар найден
-        o.assistantResult={link:t.result_link,photos:t.photos,attachments:t.attachments};
+        o.stage=1;
+        o.assistantResult={link:resultLink,photos:aPhotos,attachments:t.attachments};
+        if(resultLink)o.kpLink=resultLink;
+        if(aPhotos.length){if(!o.photos)o.photos=[];aPhotos.forEach(u=>{if(!o.photos.includes(u))o.photos.push(u);});}
+        if(aComments.length){if(!o.comments)o.comments=[];aComments.forEach(c=>{if(!o.comments.find(x=>x.ts===c.ts))o.comments.push(c);});}
         if(!o.stageLog)o.stageLog=[];
-        o.stageLog.push({from:0,to:1,ts:Date.now(),note:'Товар найден ассистентом'+(t.result_link?' 🔗':'')});
-        saveDB();
+        o.stageLog.push({from:0,to:1,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
+        changed=true;
+      }else if(o&&o.stage===1){
+        if(resultLink&&!o.kpLink)o.kpLink=resultLink;
+        if(aPhotos.length){if(!o.photos)o.photos=[];aPhotos.forEach(u=>{if(!o.photos.includes(u))o.photos.push(u);});changed=true;}
+        if(aComments.length){if(!o.comments)o.comments=[];const before=o.comments.length;aComments.forEach(c=>{if(!o.comments.find(x=>x.ts===c.ts))o.comments.push(c);});if(o.comments.length!==before)changed=true;}
       }
     }
   });
+  if(changed)saveDB();
 }
 
 function setStatPeriod(p){statPeriod=p;renderWork();}
@@ -1600,14 +1628,7 @@ function renderLead(){
         </div>`:''}
         <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('lead',${l.id})">📤 ${l.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
       </div>`:''}
-      ${l.stage===6?`<div class="cs" style="background:rgba(0,122,255,.06);border:.5px solid rgba(0,122,255,.2);border-radius:var(--rs);padding:12px 14px;margin-bottom:2px">
-        <div style="font-size:13px;font-weight:600;color:var(--ac);margin-bottom:10px">📋 КП готово — ссылка на таблицу</div>
-        <input id="lead-kp-link" type="url" placeholder="https://docs.google.com/spreadsheets/..." value="${l.kpLink||''}" style="width:100%;font-size:14px;padding:9px 11px;border:.5px solid var(--bd2);border-radius:var(--rs);background:var(--sf);color:var(--t1);font-family:inherit;box-sizing:border-box;margin-bottom:10px">
-        <div style="display:flex;gap:8px">
-          <button class="pb pb-p pb-sm" onclick="saveLeadKpLink()">💾 Сохранить</button>
-          ${l.kpLink?`<a href="${l.kpLink}" target="_blank" class="pb pb-s pb-sm" style="text-decoration:none">🔗 Открыть КП</a>`:''}
-        </div>
-      </div>`:''}
+              </div>
       ${l.kpLink&&l.stage!==5?`<div style="padding:9px 12px;background:rgba(0,122,255,.08);border:.5px solid rgba(0,122,255,.2);border-radius:var(--rs);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ac)">📋 КП</span><a href="${l.kpLink}" target="_blank" style="color:var(--ac);font-size:13px;font-weight:500">🔗 Открыть</a></div>`:''}
       <div class="cs">
         <div class="cs-title" style="margin-bottom:9px">Фото</div>
@@ -1770,7 +1791,12 @@ function renderClient(){
       <div class="fr"><span class="fl">Доставка</span><span class="fv">${c.delivery==='cargo'?'Карго':'Белая'}</span></div>
     ${analyticsHTML}</div></div>
     <div class="card"><div class="cs"><div class="cs-title" style="margin-bottom:9px">Заказы (${c.orders.length})</div>
-      ${c.orders.length?c.orders.map(o=>{const diff=o.delivery.arrDate?daysDiff(o.delivery.arrDate):null;const isD=diff!==null&&diff<0&&o.stage===7;return`<div class="cr" onclick="openOrder(${c.id},${o.id})"><div style="flex:1"><div style="font-size:14px;font-weight:500">${o.name}</div>${o.delivery.arrDate&&o.stage>=7?`<div style="font-size:12px;color:${isD?'var(--rd)':o.stage===9?'var(--gt)':'var(--ac)'};margin-top:2px">📦 ${fmtDate(o.delivery.arrDate)}${isD?' ⚠️':o.stage===9?' ✅':''}</div>`:''}</div><span style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;background:${sb[o.stage]};color:${sc[o.stage]};white-space:nowrap">${OS[o.stage]}</span>›</div>`;}).join(''):'<div class="empty" style="padding:14px">Нет заказов</div>'}
+      ${c.orders.length?c.orders.map(o=>{const diff=o.delivery.arrDate?daysDiff(o.delivery.arrDate):null;const isD=diff!==null&&diff<0&&o.stage===7;
+  const aTask=o.assistantTaskId?_asTasks.find(x=>x.id===o.assistantTaskId):null;
+  const aStatus=aTask?{new:'🔍 У ассистента',in_progress:'⚡ Ассистент работает',done:'✅ Товар найден',problem:'⚠️ Проблема у ассистента'}[aTask.status]:'';
+  return`<div class="cr" onclick="openOrder(${c.id},${o.id})"><div style="flex:1"><div style="font-size:14px;font-weight:500">${o.name}</div>${o.delivery.arrDate&&o.stage>=7?`<div style="font-size:12px;color:${isD?'var(--rd)':o.stage===9?'var(--gt)':'var(--ac)'};margin-top:2px">📦 ${fmtDate(o.delivery.arrDate)}${isD?' ⚠️':o.stage===9?' ✅':''}</div>`:''
+  }${aStatus?`<div style="font-size:11px;margin-top:3px;color:${aTask.status==='done'?'var(--gt)':aTask.status==='problem'?'var(--rd)':'var(--ac)'}">${aStatus}</div>`:''
+  }${o.assistantResult&&o.assistantResult.link?`<div style="font-size:11px;margin-top:3px"><a href="${o.assistantResult.link}" target="_blank" style="color:var(--gt)" onclick="event.stopPropagation()">🔗 Расчёт готов</a></div>`:''}</div><span style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;background:${sb[o.stage]};color:${sc[o.stage]};white-space:nowrap">${OS[o.stage]}</span>›</div>`;}).join(''):'<div class="empty" style="padding:14px">Нет заказов</div>'}
     </div></div>
     <div class="card"><div class="cs"><div class="cs-title" style="margin-bottom:9px">Комментарии</div>
       <div>${cH}</div>
@@ -1846,6 +1872,10 @@ function renderOrder(){
           <div style="font-size:13px;font-weight:600;color:#bf7fe0;margin-bottom:10px">🔍 Поиск товара — отправить задание ассистенту</div>
           ${o.assistantTaskId?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Задание #${o.assistantTaskId} отправлено</div>`:''}
           <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('order',null)">📤 ${o.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
+        </div>`:''}
+        ${o.stage===1&&o.assistantResult?`<div style="margin-top:10px;background:rgba(52,199,89,.06);border:.5px solid rgba(52,199,89,.3);border-radius:var(--rs);padding:12px 14px;margin-bottom:6px">
+          ${o.assistantResult.link?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Ссылка на расчёт</div><a href="${o.assistantResult.link}" target="_blank" style="color:var(--gt);font-size:14px;font-weight:600">🔗 Открыть таблицу</a></div>`:''}
+          ${o.assistantResult.photos&&o.assistantResult.photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap">${o.assistantResult.photos.map((url,i)=>`<img src="${url}" onclick="openLightbox(${JSON.stringify(o.assistantResult.photos).replace(/"/g,'&quot;')},${i})" style="width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in">`).join('')}</div>`:''}
         </div>`:''}
         ${o.stage===2?`<div style="margin-top:10px;background:rgba(0,122,255,.08);border:.5px solid rgba(0,122,255,.25);border-radius:var(--rs);padding:12px 14px">
           <div style="font-size:13px;font-weight:600;color:var(--ac);margin-bottom:8px">📋 КП готово — ссылка на таблицу</div>
