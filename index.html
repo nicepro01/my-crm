@@ -593,9 +593,9 @@ function checkKpReminders(){
   });
 }
 
-let hCY=2026,hCM=5,hCV='month',hCS=toStr(),hCF='all';
-let fCY=2026,fCM=5,fCV='month',fCS=toStr();
-let wCY=2026,wCM=5,wCV='month',wCS=toStr();
+const _now=new Date();let hCY=_now.getFullYear(),hCM=_now.getMonth(),hCV='month',hCS=toStr(),hCF='all';
+let fCY=_now.getFullYear(),fCM=_now.getMonth(),fCV='month',fCS=toStr();
+let wCY=_now.getFullYear(),wCM=_now.getMonth(),wCV='month',wCS=toStr();
 let curF=null,curTab='overview',curLead=null,curClient=null,curOrder=null,taskFrom=null,curWT='overview',statPeriod='all',statFrom='',statTo='',clientSort='default';
 let dragId=null,dragColId=null,dragType=null; // dragType: 'lead'|'content'|'proj'
 
