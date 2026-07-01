@@ -1422,40 +1422,36 @@ async function checkAssistantResults(){
 
     if(t.source_type==='lead'){
       const l=db.work.leads.find(x=>x.assistantTaskId===t.id);
-      if(l&&l.stage===4){
-        l.stage=5;
+      if(l){
+        // Always sync result regardless of current stage
         l.assistantResult={link:resultLink,photos:aPhotos,attachments:t.attachments};
-        // Copy result link to kpLink for КП готово stage
-        if(resultLink)l.kpLink=resultLink;
-        // Copy photos
-        if(aPhotos.length){if(!l.photos)l.photos=[];aPhotos.forEach(u=>{if(!l.photos.includes(u))l.photos.push(u);});}
-        // Copy comments
-        if(aComments.length){if(!l.comments)l.comments=[];aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);});}
-        if(!l.stageLog)l.stageLog=[];
-        l.stageLog.push({from:4,to:5,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
-        changed=true;
-      }else if(l&&l.stage===5){
-        // Already moved — update photos/comments/link if new
         if(resultLink&&!l.kpLink)l.kpLink=resultLink;
         if(aPhotos.length){if(!l.photos)l.photos=[];aPhotos.forEach(u=>{if(!l.photos.includes(u))l.photos.push(u);});changed=true;}
-        if(aComments.length){if(!l.comments)l.comments=[];const before=l.comments.length;aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);});if(l.comments.length!==before)changed=true;}
+        if(aComments.length){if(!l.comments)l.comments=[];aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);changed=true;});}
+        // Move to Товар найден only if still on Поиск товара
+        if(l.stage===4){
+          l.stage=5;
+          if(!l.stageLog)l.stageLog=[];
+          l.stageLog.push({from:4,to:5,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
+        }
+        changed=true;
       }
     }else if(t.source_type==='order'){
       const c=db.work.clients.find(x=>x.id===t.client_id);
       const o=c?.orders.find(x=>x.assistantTaskId===t.id);
-      if(o&&o.stage===0){
-        o.stage=1;
+      if(o){
+        // Always sync result regardless of current stage
         o.assistantResult={link:resultLink,photos:aPhotos,attachments:t.attachments};
-        if(resultLink)o.kpLink=resultLink;
-        if(aPhotos.length){if(!o.photos)o.photos=[];aPhotos.forEach(u=>{if(!o.photos.includes(u))o.photos.push(u);});}
-        if(aComments.length){if(!o.comments)o.comments=[];aComments.forEach(c=>{if(!o.comments.find(x=>x.ts===c.ts))o.comments.push(c);});}
-        if(!o.stageLog)o.stageLog=[];
-        o.stageLog.push({from:0,to:1,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
-        changed=true;
-      }else if(o&&o.stage===1){
         if(resultLink&&!o.kpLink)o.kpLink=resultLink;
         if(aPhotos.length){if(!o.photos)o.photos=[];aPhotos.forEach(u=>{if(!o.photos.includes(u))o.photos.push(u);});changed=true;}
-        if(aComments.length){if(!o.comments)o.comments=[];const before=o.comments.length;aComments.forEach(c=>{if(!o.comments.find(x=>x.ts===c.ts))o.comments.push(c);});if(o.comments.length!==before)changed=true;}
+        if(aComments.length){if(!o.comments)o.comments=[];aComments.forEach(c=>{if(!o.comments.find(x=>x.ts===c.ts))o.comments.push(c);changed=true;});}
+        // Move to Товар найден only if still on Поиск товара
+        if(o.stage===0){
+          o.stage=1;
+          if(!o.stageLog)o.stageLog=[];
+          o.stageLog.push({from:0,to:1,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
+        }
+        changed=true;
       }
     }
   });
