@@ -1796,6 +1796,11 @@ function renderOrder(){
   document.getElementById('order-content').innerHTML=`
     <div class="card">
       <div class="cs"><div class="cs-title" style="margin-bottom:9px">Этап</div>${stH}</div>
+      ${o.stage===0?`<div style="background:rgba(175,82,222,.08);border:.5px solid rgba(175,82,222,.3);border-radius:var(--rs);padding:12px 14px;margin-top:10px">
+        <div style="font-size:13px;font-weight:600;color:#bf7fe0;margin-bottom:8px">🔍 Поиск товара — задание ассистенту</div>
+        ${o.assistantTaskId?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">✓ Задание #${o.assistantTaskId} отправлено</div>`:''}
+        <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('order',null)">📤 ${o.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
+      </div>`:''}
       ${o.stage>=3?`<div class="cs"><div class="cs-title" style="margin-bottom:9px">Оплата</div>
         <div class="pg"><div class="pi"><div class="pl">Себестоимость ¥</div><div class="pv">${fmtY(p.costY||0)}</div><div class="ps">= ${fmtR((+p.costY||0)*(+p.rateIn||0))}</div></div><div class="pi"><div class="pl">Сумма клиенту ¥</div><div class="pv">${fmtY(p.priceY||0)}</div><div class="ps">= ${fmtR((+p.priceY||0)*(+p.rateOut||0))}</div></div></div>
         <div class="pg"><div class="pi"><div class="pl">Курс ¥ (себес)</div><div class="pv">${p.rateIn||'—'}</div></div><div class="pi"><div class="pl">Курс ¥ (клиент)</div><div class="pv">${p.rateOut||'—'}</div></div></div>
