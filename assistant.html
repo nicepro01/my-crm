@@ -96,10 +96,10 @@ let tasks=[],curTask=null;
 const COLS=[
   {k:'new',         ru:'🆕 Новое',        cn:'新任务', bg:'var(--s3)',               c:'var(--t2)'},
   {k:'in_progress', ru:'⚡ В работе',     cn:'进行中',  bg:'rgba(0,122,255,.2)',      c:'var(--ac)'},
+  {k:'revision',    ru:'🔄 На доработку', cn:'修改中',  bg:'rgba(255,69,58,.15)',     c:'var(--rd)'},
+  {k:'payment',     ru:'💳 Оплата',       cn:'付款',    bg:'rgba(255,149,10,.2)',     c:'var(--or)'},
   {k:'done',        ru:'✅ Выполнено',    cn:'已完成',  bg:'rgba(48,209,88,.2)',      c:'var(--gt)'},
   {k:'accepted',    ru:'👍 Принято',      cn:'已接受',  bg:'rgba(48,209,88,.1)',      c:'var(--gt)'},
-  {k:'payment',     ru:'💳 Оплата',       cn:'付款',    bg:'rgba(255,149,10,.2)',     c:'var(--or)'},
-  {k:'revision',    ru:'🔄 На доработку', cn:'修改中',  bg:'rgba(255,69,58,.15)',     c:'var(--rd)'},
 ];
 
 function ts(t){const d=new Date(t);return d.toLocaleDateString('ru',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});}
