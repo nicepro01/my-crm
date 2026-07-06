@@ -1321,9 +1321,13 @@ async function submitSendToAssistant(sourceType){
   const sourceName=sourceType==='lead'
     ? (db.work.leads.find(x=>x.id===curLead)?.name||'Лид')
     : ((db.work.clients.find(x=>x.id===curClient)?.clientId||'')+'  '+( db.work.clients.find(x=>x.id===curClient)?.name||'')+' / '+(source?.name||'Заказ'));
-  const source2=sourceType==='lead'?db.work.leads.find(x=>x.id===curLead):db.work.clients.find(x=>x.id===curClient)?.orders.find(x=>x.id===curOrder);
-  const productName=source2?.product||source2?.name||'';
-  const title=productName||sourceName;
+  const _lead=sourceType==='lead'?db.work.leads.find(x=>x.id===curLead):null;
+  const _client=sourceType==='order'?db.work.clients.find(x=>x.id===curClient):null;
+  const _order=sourceType==='order'?_client?.orders.find(x=>x.id===curOrder):null;
+  // Lead: show product name; Order: show "ClientName ClientID"
+  const title=sourceType==='lead'
+    ? (_lead?.product||_lead?.name||'Лид')
+    : ((_client?.name||'')+' '+(_client?.clientId||'')).trim();
 
   closeModal();showToast('⏳ Отправляю задание...');
 
