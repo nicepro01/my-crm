@@ -1164,6 +1164,7 @@ async function saveAssistantTask(task){
   }
   await loadAssistantTasks();
   await checkAssistantResults();
+  await syncAssistantTaskTitles();
   setInterval(async()=>{await loadAssistantTasks();await checkAssistantResults();},30000);
   renderWork();
 }
@@ -1370,6 +1371,7 @@ async function submitSendToAssistant(sourceType){
 
   await loadAssistantTasks();
   await checkAssistantResults();
+  await syncAssistantTaskTitles();
   setInterval(async()=>{await loadAssistantTasks();await checkAssistantResults();},30000);
   if(sourceType==='lead')renderLead();
   else renderOrder();
@@ -1407,11 +1409,33 @@ async function sendManagerComment(taskId){
   await _sb.from('assistant_tasks').update({comments,updated_at:new Date().toISOString()}).eq('id',taskId);
   await loadAssistantTasks();
   await checkAssistantResults();
+  await syncAssistantTaskTitles();
   setInterval(async()=>{await loadAssistantTasks();await checkAssistantResults();},30000);
   closeModal();showToast('✅ Комментарий отправлен');
 }
 
 // Poll for completed assistant tasks and update lead/order stage
+async function syncAssistantTaskTitles(){
+  if(!_sb)return;
+  const{data}=await _sb.from('assistant_tasks').select('id,title,source_type,source_id,client_id');
+  if(!data)return;
+  const updates=[];
+  data.forEach(t=>{
+    let newTitle='';
+    if(t.source_type==='lead'){
+      const l=db.work.leads.find(x=>x.id===t.source_id);
+      if(l)newTitle=[l.name,l.product].filter(Boolean).join(' — ');
+    }else if(t.source_type==='order'){
+      const c=db.work.clients.find(x=>x.id===t.client_id);
+      if(c)newTitle=[c.name,c.clientId].filter(Boolean).join(' ');
+    }
+    if(newTitle&&newTitle!==t.title)updates.push({id:t.id,title:newTitle});
+  });
+  for(const u of updates){
+    await _sb.from('assistant_tasks').update({title:u.title}).eq('id',u.id);
+  }
+  if(updates.length){await loadAssistantTasks();console.log(`Updated ${updates.length} task titles`);}
+}
 async function checkAssistantResults(){
   if(!_sb)return;
   const{data}=await _sb.from('assistant_tasks').select('*').eq('status','done');
@@ -2410,6 +2434,7 @@ async function initApp() {
   setTimeout(checkLeadTaskReminders, 3000);
   await loadAssistantTasks();
   await checkAssistantResults();
+  await syncAssistantTaskTitles();
   setInterval(async()=>{await loadAssistantTasks();await checkAssistantResults();},30000);
   // Check for overdue KP leads (24h+) and show alert
   setTimeout(()=>{
