@@ -169,6 +169,13 @@ function renderDetail(){
     ${t.photos&&t.photos.length?`<div class="card"><div class="cs-title">Мои фото / 我的照片</div><div style="display:flex;gap:8px;flex-wrap:wrap">${t.photos.map((url,i)=>`<img class="thumb" src="${url}" onclick="openLB(${i})">`).join('')}</div></div>`:''}
     ${btns?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${btns}</div>`:''}
     <div class="card"><div class="cs-title">Добавить фото / 添加照片</div><button class="btn btn-s" onclick="uploadPhotos()" style="font-size:13px">📷 Фото</button></div>
+    ${(()=>{
+      const log=t.activity_log||[];
+      if(!log.length)return '';
+      const labels={started:'▶ Начал работу',completed:'✅ Отметил выполнено',accepted:'👍 Принято',payment:'💳 Оплата',revision:'🔄 На доработку',photo_added:'📷 Добавил фото',link_added:'🔗 Добавил ссылку'};
+      const dur=t.duration?'<div style="margin-top:8px;padding:8px 12px;background:rgba(48,209,88,.1);border-radius:8px;font-size:13px;color:var(--gt);font-weight:600">⏱ Затраченное время: '+t.duration+'</div>':'';
+      return '<div class="card"><div class="cs-title">Лог действий / 操作日志</div>'+log.map(e=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--bd);font-size:12px"><span style="color:var(--t2)">${labels[e.action]||e.action}</span><span style="color:var(--t3)">${ts(e.ts)}</span></div>`).join('')+dur+'</div>';
+    })()}
     <div class="card">
       <div class="cs-title">Чат / 聊天 ${t.comments&&t.comments.length?'('+t.comments.length+')':''}</div>
       ${t.comments&&t.comments.length?t.comments.map(c=>`<div class="msg ${c.author==='manager'?'mgr':''}"><div class="msg-meta">${ts(c.ts)} · ${c.author==='manager'?'👔 Менеджер':'👷 Я'}</div><div class="msg-text">${c.text}</div></div>`).join(''):'<div style="font-size:13px;color:var(--t3);padding:8px 0">Нет сообщений</div>'}
@@ -179,9 +186,27 @@ function renderDetail(){
 
 function backToKanban(){document.getElementById('s-detail').classList.remove('active');curTask=null;}
 
+function addLogEntry(task,action){
+  if(!task.activity_log)task.activity_log=[];
+  task.activity_log.push({action,ts:Date.now()});
+}
+function calcDuration(log){
+  if(!log||!log.length)return null;
+  const start=log.find(e=>e.action==='started');
+  const done=log.find(e=>e.action==='completed'||e.action==='accepted');
+  if(!start||!done)return null;
+  const ms=done.ts-start.ts;
+  const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);
+  return h?h+'ч '+m+'мин':(m||1)+'мин';
+}
 async function setStatus(s){
   if(!curTask)return;showToast('⏳...');
-  await sb.from('assistant_tasks').update({status:s,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  const log=[...(curTask.activity_log||[])];
+  const actionMap={in_progress:'started',done:'completed',accepted:'accepted',payment:'payment',revision:'revision'};
+  if(actionMap[s])log.push({action:actionMap[s],ts:Date.now()});
+  const updates={status:s,activity_log:log,updated_at:new Date().toISOString()};
+  if(s==='accepted'){const dur=calcDuration(log);if(dur)updates.duration=dur;}
+  await sb.from('assistant_tasks').update(updates).eq('id',curTask.id);
   await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Готово');
 }
 
@@ -199,7 +224,11 @@ async function submitDone(){
   const comments=[...(curTask.comments||[])];
   if(comment)comments.push({text:comment,ts:Date.now(),author:'assistant'});
   closeModal();showToast('⏳ Отправляю...');
-  await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  const doneLog=[...(curTask.activity_log||[])];
+  doneLog.push({action:'completed',ts:Date.now()});
+  if(link)doneLog.push({action:'link_added',ts:Date.now()});
+  const dur=calcDuration(doneLog);
+  await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,activity_log:doneLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
   await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();
   showToast('🎉 Менеджер получил результат!');
 }
@@ -227,8 +256,9 @@ async function uploadPhotos(){
         const d=await r.json();if(d.secure_url)photos.push(d.secure_url);
       }catch(e){console.error(e);}
     }
-    await sb.from('assistant_tasks').update({photos,updated_at:new Date().toISOString()}).eq('id',curTask.id);
-    await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Фото загружено!');
+    const photoLog=[...(curTask.activity_log||[]),{action:'photo_added',count:photos.length-(curTask.photos?.length||0),ts:Date.now()}];
+  await sb.from('assistant_tasks').update({photos,activity_log:photoLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Фото загружено!');
   });
   inp.click();
 }
