@@ -1324,10 +1324,10 @@ async function submitSendToAssistant(sourceType){
   const _lead=sourceType==='lead'?db.work.leads.find(x=>x.id===curLead):null;
   const _client=sourceType==='order'?db.work.clients.find(x=>x.id===curClient):null;
   const _order=sourceType==='order'?_client?.orders.find(x=>x.id===curOrder):null;
-  // Lead: show product name; Order: show "ClientName ClientID"
+  // Lead: "Name — Product"; Order: "ClientName ClientID — OrderName"
   const title=sourceType==='lead'
-    ? (_lead?.product||_lead?.name||'Лид')
-    : ((_client?.name||'')+' '+(_client?.clientId||'')).trim();
+    ? ((_lead?.name||'')+(_lead?.product?' — '+_lead.product:'')).trim()
+    : ((_client?.name||'')+' '+(_client?.clientId||'')+(_order?.name?' — '+_order.name:'')).trim();
 
   closeModal();showToast('⏳ Отправляю задание...');
 
