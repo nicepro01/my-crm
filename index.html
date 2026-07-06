@@ -1321,7 +1321,9 @@ async function submitSendToAssistant(sourceType){
   const sourceName=sourceType==='lead'
     ? (db.work.leads.find(x=>x.id===curLead)?.name||'Лид')
     : ((db.work.clients.find(x=>x.id===curClient)?.clientId||'')+'  '+( db.work.clients.find(x=>x.id===curClient)?.name||'')+' / '+(source?.name||'Заказ'));
-  const title=`${sourceName} — ${sourceType==='lead'?'Лид':''}`.trim();
+  const source2=sourceType==='lead'?db.work.leads.find(x=>x.id===curLead):db.work.clients.find(x=>x.id===curClient)?.orders.find(x=>x.id===curOrder);
+  const productName=source2?.product||source2?.name||'';
+  const title=productName||sourceName;
 
   closeModal();showToast('⏳ Отправляю задание...');
 
@@ -1623,6 +1625,7 @@ function renderLead(){
           <button class="pb pb-sm" onclick="openAssistantTaskFromLead()" style="font-size:11px;background:rgba(175,82,222,.15);color:#bf7fe0;border:none">Открыть →</button>
         </div>`:''}
         <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('lead',${l.id})">📤 ${l.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
+        ${l.assistantTaskId?`<a href="https://nicepro01.github.io/my-crm/assistant.html" target="_blank" class="pb pb-sm" style="background:rgba(175,82,222,.08);color:#bf7fe0;border:.5px solid rgba(175,82,222,.3);font-size:12px;text-decoration:none;margin-top:6px;display:inline-flex">🔗 Открыть у ассистента</a>`:''}
       </div>`:''}
               </div>
       ${l.kpLink&&l.stage!==5?`<div style="padding:9px 12px;background:rgba(0,122,255,.08);border:.5px solid rgba(0,122,255,.2);border-radius:var(--rs);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ac)">📋 КП</span><a href="${l.kpLink}" target="_blank" style="color:var(--ac);font-size:13px;font-weight:500">🔗 Открыть</a></div>`:''}
@@ -1822,6 +1825,7 @@ function renderOrder(){
         <div style="font-size:13px;font-weight:600;color:#bf7fe0;margin-bottom:8px">🔍 Поиск товара — задание ассистенту</div>
         ${o.assistantTaskId?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">✓ Задание #${o.assistantTaskId} отправлено</div>`:''}
         <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('order',null)">📤 ${o.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
+        ${o.assistantTaskId?`<a href="https://nicepro01.github.io/my-crm/assistant.html" target="_blank" class="pb pb-sm" style="background:rgba(175,82,222,.08);color:#bf7fe0;border:.5px solid rgba(175,82,222,.3);font-size:12px;text-decoration:none;margin-top:6px;display:inline-flex">🔗 Открыть у ассистента</a>`:''}
       </div>`:''}
       ${o.stage>=3?`<div class="cs"><div class="cs-title" style="margin-bottom:9px">Оплата</div>
         <div class="pg"><div class="pi"><div class="pl">Себестоимость ¥</div><div class="pv">${fmtY(p.costY||0)}</div><div class="ps">= ${fmtR((+p.costY||0)*(+p.rateIn||0))}</div></div><div class="pi"><div class="pl">Сумма клиенту ¥</div><div class="pv">${fmtY(p.priceY||0)}</div><div class="ps">= ${fmtR((+p.priceY||0)*(+p.rateOut||0))}</div></div></div>
@@ -1868,6 +1872,7 @@ function renderOrder(){
           <div style="font-size:13px;font-weight:600;color:#bf7fe0;margin-bottom:10px">🔍 Поиск товара — отправить задание ассистенту</div>
           ${o.assistantTaskId?`<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Задание #${o.assistantTaskId} отправлено</div>`:''}
           <button class="pb pb-sm" style="background:rgba(175,82,222,.15);color:#bf7fe0;border:none;font-size:13px;font-weight:600" onclick="openSendToAssistant('order',null)">📤 ${o.assistantTaskId?'Обновить задание':'Отправить ассистенту'}</button>
+        ${o.assistantTaskId?`<a href="https://nicepro01.github.io/my-crm/assistant.html" target="_blank" class="pb pb-sm" style="background:rgba(175,82,222,.08);color:#bf7fe0;border:.5px solid rgba(175,82,222,.3);font-size:12px;text-decoration:none;margin-top:6px;display:inline-flex">🔗 Открыть у ассистента</a>`:''}
         </div>`:''}
         ${o.stage===1&&o.assistantResult?`<div style="margin-top:10px;background:rgba(52,199,89,.06);border:.5px solid rgba(52,199,89,.3);border-radius:var(--rs);padding:12px 14px;margin-bottom:6px">
           ${o.assistantResult.link?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Ссылка на расчёт</div><a href="${o.assistantResult.link}" target="_blank" style="color:var(--gt);font-size:14px;font-weight:600">🔗 Открыть таблицу</a></div>`:''}
@@ -1918,7 +1923,13 @@ function renderOrder(){
       </div>`:''}
     </div>`;
 }
-function setOS(cid,oid,stage){const o=db.work.clients.find(x=>x.id===cid).orders.find(x=>x.id===oid);const prev=o.stage;o.stage=stage;if(!o.stageLog)o.stageLog=[];o.stageLog.push({from:prev,to:stage,ts:Date.now()});renderOrder();buildHomeCal();saveDB();showToast('Этап обновлён');}
+function setOS(cid,oid,stage){const o=db.work.clients.find(x=>x.id===cid).orders.find(x=>x.id===oid);const prev=o.stage;o.stage=stage;if(!o.stageLog)o.stageLog=[];o.stageLog.push({from:prev,to:stage,ts:Date.now()});
+  // Sync assistant task stage
+  if(o.assistantTaskId&&_sb){
+    if(stage===5)_sb.from('assistant_tasks').update({status:'payment',updated_at:new Date().toISOString()}).eq('id',o.assistantTaskId).then(()=>{loadAssistantTasks();});
+    else if(stage===6||stage===7||stage===8||stage===9)_sb.from('assistant_tasks').update({status:'accepted',updated_at:new Date().toISOString()}).eq('id',o.assistantTaskId).then(()=>{loadAssistantTasks();});
+  }
+  renderOrder();buildHomeCal();saveDB();showToast('Этап обновлён');}
 function addOC(){const txt=document.getElementById('oc-i').value.trim();if(!txt)return;db.work.clients.find(x=>x.id===curClient).orders.find(x=>x.id===curOrder).comments.push({text:txt,ts:Date.now()});renderOrder();showToast('Комментарий добавлен');}
 let _curOrderPhotos=[];
 function initPhotoDrag(){
