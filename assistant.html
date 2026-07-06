@@ -118,7 +118,7 @@ function renderKanban(){
       <div class="col-head"><div><div class="col-title">${col.ru}</div><div class="col-cn">${col.cn}</div></div><span class="col-count">${ts2.length}</span></div>
       <div class="col-body" style="transition:background .15s">${ts2.map(t=>`<div class="kcard" draggable="true" ondragstart="dragCard(event,${t.id})" onclick="openTask(${t.id})">
         <div class="kcard-title">${t.title}</div>
-        ${t.result_link?'<div style="font-size:11px;color:var(--gt)">🔗 Расчёт</div>':''}
+        ${t.result_link?`<a href="${t.result_link}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--gt);text-decoration:none">🔗 Расчёт готов</a>`:''}
         ${t.photos&&t.photos.length?`<div style="font-size:11px;color:var(--t3)">📷 ${t.photos.length}</div>`:''}
         ${t.comments&&t.comments.length?`<div style="font-size:11px;color:var(--t3)">💬 ${t.comments.length}</div>`:''}
         <div class="kcard-sub">${ts(new Date(t.created_at).getTime())}</div>
