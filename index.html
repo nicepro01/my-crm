@@ -1167,7 +1167,7 @@ function renderClients(){
     <button onclick="clientView='kanban';renderWork()" style="padding:5px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${clientView==='kanban'?'var(--ac)':'var(--s3)'};color:${clientView==='kanban'?'#fff':'var(--t2)'}">⬜ Канбан</button>
   </div>`;
   if(clientView==='kanban')return viewToggle+renderClientsKanban();
-  return`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  return viewToggle+`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <div style="position:relative">
       <button onclick="document.getElementById('client-filter-dd').classList.toggle('hidden')" style="padding:6px 14px;border-radius:20px;border:.5px solid var(--bd2);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;background:${clientSort!=='default'?'var(--ac)':'var(--s3)'};color:${clientSort!=='default'?'#fff':'var(--t2)'};display:flex;align-items:center;gap:6px">
         ${filterLabel} ▾
