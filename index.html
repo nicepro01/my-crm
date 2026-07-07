@@ -805,7 +805,7 @@ function renderContactsHTML(d,f){return`<div style="margin-bottom:10px"><button 
 function renderShoppingHTML(d,f){const pend=d.shopping.filter(s=>!s.bought),bought=d.shopping.filter(s=>s.bought);const row=(s,idx)=>`<div class="shop-item sort-item" data-sort-idx="${idx}"><div class="shop-cb${s.bought?' bought':''}" onclick="toggleShop('${f}',${s.id})">${s.bought?'✓':''}</div><div style="flex:1;font-size:14px;font-weight:500${s.bought?';text-decoration:line-through;color:var(--t3)':''}">${s.name}</div><span class="shop-cat" style="${SHOP_CAT_COLORS[s.cat]||''}">${s.cat}</span><button style="background:none;border:none;cursor:pointer;font-size:16px;margin-left:6px" onclick="delShop('${f}',${s.id})">🗑</button></div>`;return`<div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${pend.length} товаров</div><button class="pb pb-p pb-sm" onclick="openAddShop('${f}')">+ Добавить</button></div><div class="card">${pend.length?pend.map((s,i)=>row(s,i)).join(''):''}${bought.length?`<div style="padding:8px 14px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;border-top:.5px solid var(--bd)">Куплено (${bought.length})</div>${bought.map((s,i)=>row(s,pend.length+i)).join('')}`:''}${!d.shopping.length?'<div class="empty">Список пуст</div>':''}</div>`;}
 function renderFolderStats(d){const act=d.tasks.filter(t=>!t.done).length,dn=d.tasks.filter(t=>t.done).length;return`<div class="stats"><div class="stat"><div class="stat-l">Активных</div><div class="stat-v">${act}</div></div><div class="stat"><div class="stat-l">Выполнено</div><div class="stat-v">${dn}</div></div><div class="stat"><div class="stat-l">Прогресс</div><div class="stat-v">${d.tasks.length?Math.round(dn/d.tasks.length*100):0}%</div></div><div class="stat"><div class="stat-l">Контактов</div><div class="stat-v">${d.contacts.length}</div></div></div>`;}
 
-function qToggle(f,id){const t=(db[f].tasks||[]).find(x=>x.id===id);if(t){t.done=!t.done;renderFolder();updateFC();buildHomeCal();}}
+function qToggle(f,id){const t=(db[f].tasks||[]).find(x=>x.id===id);if(t){t.done=!t.done;saveDB();renderFolder();updateFC();buildHomeCal();}}
 function saveNote(f){const txt=document.getElementById('nn-t')?.value.trim();if(!txt)return;const notes=db[f||curF].notes;const id=Math.max(0,...notes.map(n=>n.id))+1;notes.push({id,text:txt,date:toStr()});if(curF)renderFolder();else renderWork();showToast('Заметка сохранена');}
 function delNote(f,id){db[f].notes=db[f].notes.filter(x=>x.id!==id);if(curF)renderFolder();else renderWork();}
 function delContact(f,id){db[f].contacts=db[f].contacts.filter(x=>x.id!==id);renderFolder();}
@@ -1018,7 +1018,7 @@ function initLeadDrag(){
 }
 
 function renderWTasksHTML(){const d=db.work,pend=d.tasks.filter(t=>!t.done),done=d.tasks.filter(t=>t.done);const row=(t,idx)=>`<div class="ti sort-item" data-sort-idx="${idx}"><div class="cb${t.done?' done':''}" onclick="event.stopPropagation();wqT(${t.id})">${t.done?'✓':''}</div><div class="pdot" style="background:${PC[t.priority]}"></div><div style="flex:1;cursor:pointer" onclick="openTaskCard('work',${t.id},'work')"><div style="font-size:14px;font-weight:500${t.done?';text-decoration:line-through;color:var(--t3)':''}">${t.name}</div><div style="font-size:12px;color:var(--t2);margin-top:2px">${t.due?fmtDate(t.due):'-'}${t.time?' · '+t.time:''}</div></div><button class="pb pb-s pb-sm" onclick="openEditTask('work',${t.id})">✏️</button></div>`;return`<div style="margin-bottom:10px"><button class="pb pb-p pb-sm" onclick="openAddWT()">+ Задача</button></div>${pend.map((t,i)=>row(t,i)).join('')}${done.length?`<div class="sl" style="margin-top:10px">Выполнено</div>${done.map((t,i)=>row(t,pend.length+i)).join('')}`:''}${!d.tasks.length?'<div class="empty">Нет задач</div>':''}`;}
-function wqT(id){const t=db.work.tasks.find(x=>x.id===id);if(t){t.done=!t.done;renderWork();}}
+function wqT(id){const t=db.work.tasks.find(x=>x.id===id);if(t){t.done=!t.done;saveDB();renderWork();}}
 
 // ── CONTENT PLAN ───────────────────────────────────────
 function renderContentPlan(){
@@ -2465,10 +2465,8 @@ document.addEventListener('keydown',e=>{
 });
 // ── INIT ───────────────────────────────────────────────
 // Патч showToast уже вызывает saveDB(), но также патчим drag-drop (они не вызывают showToast):
-const _origQToggle=qToggle;
-function qToggle(f,id){_origQToggle(f,id);saveDB();}
-const _origWqT=wqT;
-function wqT(id){_origWqT(id);saveDB();}
+
+
 const _origToggleShop=toggleShop;
 function toggleShop(f,id){_origToggleShop(f,id);saveDB();}
 
