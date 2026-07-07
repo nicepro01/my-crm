@@ -206,7 +206,12 @@ async function setStatus(s){
   if(actionMap[s])log.push({action:actionMap[s],ts:Date.now()});
   const updates={status:s,activity_log:log,updated_at:new Date().toISOString()};
   if(s==='accepted'){const dur=calcDuration(log);if(dur)updates.duration=dur;}
-  await sb.from('assistant_tasks').update(updates).eq('id',curTask.id);
+  try{
+    await sb.from('assistant_tasks').update(updates).eq('id',curTask.id);
+  }catch(e){
+    // Fallback without new columns
+    await sb.from('assistant_tasks').update({status:s,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  }
   await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Готово');
 }
 
@@ -227,8 +232,12 @@ async function submitDone(){
   const doneLog=[...(curTask.activity_log||[])];
   doneLog.push({action:'completed',ts:Date.now()});
   if(link)doneLog.push({action:'link_added',ts:Date.now()});
-  const dur=calcDuration(doneLog);
-  await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,activity_log:doneLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  // Save — try with duration first, fallback without if column missing
+  try{
+    await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,activity_log:doneLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  }catch(e){
+    await sb.from('assistant_tasks').update({status:'done',result_link:link,comments,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+  }
   await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();
   showToast('🎉 Менеджер получил результат!');
 }
@@ -256,8 +265,12 @@ async function uploadPhotos(){
         const d=await r.json();if(d.secure_url)photos.push(d.secure_url);
       }catch(e){console.error(e);}
     }
-    const photoLog=[...(curTask.activity_log||[]),{action:'photo_added',count:photos.length-(curTask.photos?.length||0),ts:Date.now()}];
-  await sb.from('assistant_tasks').update({photos,activity_log:photoLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+    try{
+      const photoLog=[...(curTask.activity_log||[]),{action:'photo_added',ts:Date.now()}];
+      await sb.from('assistant_tasks').update({photos,activity_log:photoLog,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+    }catch(e){
+      await sb.from('assistant_tasks').update({photos,updated_at:new Date().toISOString()}).eq('id',curTask.id);
+    }
   await load();curTask=tasks.find(x=>x.id===curTask.id);renderDetail();showToast('✅ Фото загружено!');
   });
   inp.click();
