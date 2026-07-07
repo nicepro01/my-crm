@@ -876,13 +876,11 @@ function renderLeads(){
     return`<div class="kc" data-stage="${si}" style="width:145px">
       <div class="kc-hd"><span class="kc-name" style="font-size:9px">${s}</span><span class="kc-cnt">${leads.length}</span></div>
       ${leads.map(l=>`<div class="kcard" data-lid="${l.id}" onclick="openLead(${l.id})">
-        <div class="kcard-name">${l.name}<span style="font-weight:400;color:var(--t1);opacity:.7">${l.product?' — '+l.product:''}</span></div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">
+        <div class="kcard-name">${l.name}</div>
+        ${l.product?`<div style="font-size:10px;color:var(--t1);opacity:.8;margin-bottom:3px">${l.product}</div>`:''}
+        <div style="display:flex;gap:3px;flex-wrap:wrap">
           ${l.delivery!=='cargo'?'<span class="tag t-white" style="font-size:9px">Белая</span>':''}
           ${l.stage===6&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000?'<span class="tag t-warn" style="font-size:9px">🔔 Перезвонить</span>':l.stage===6?'<span class="tag" style="font-size:9px;background:var(--obg);color:var(--ot)">⏳ Ждём</span>':''}
-        </div>
-        <div style="display:flex;justify-content:flex-end;align-items:center;margin-top:2px">
-          <div style="font-size:9px;color:var(--t3)">${(()=>{if(!l.stageLog||!l.stageLog.length)return'';const last=l.stageLog[l.stageLog.length-1];const d=Math.floor((Date.now()-last.ts)/86400000);return d===0?'сег.':d+'д.';})()}</div>
         </div>
       </div>`).join('')}
     </div>`;
