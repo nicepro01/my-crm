@@ -139,8 +139,16 @@ async function dropCard(e,newStatus){
 }
 async function setStatus2(id,status){
   showToast('⏳...');
-  await sb.from('assistant_tasks').update({status,updated_at:new Date().toISOString()}).eq('id',id);
-  await load();showToast('✅ Готово');
+  const t=tasks.find(x=>x.id===id);
+  const log=[...(t?.activity_log||[])];
+  const actionMap={in_progress:'started',done:'completed',accepted:'accepted',payment:'payment',revision:'revision',new:'restarted'};
+  if(actionMap[status])log.push({action:actionMap[status],ts:Date.now()});
+  const updates={status,activity_log:log,updated_at:new Date().toISOString()};
+  try{await sb.from('assistant_tasks').update(updates).eq('id',id);}
+  catch(e){await sb.from('assistant_tasks').update({status,updated_at:new Date().toISOString()}).eq('id',id);}
+  await load();
+  if(curTask&&curTask.id===id){curTask=tasks.find(x=>x.id===id);renderDetail();}
+  showToast('✅ Готово');
 }
 
 function openTask(id){
