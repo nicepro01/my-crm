@@ -876,7 +876,7 @@ function renderLeads(){
     return`<div class="kc" data-stage="${si}" style="width:145px">
       <div class="kc-hd"><span class="kc-name" style="font-size:9px">${s}</span><span class="kc-cnt">${leads.length}</span></div>
       ${leads.map(l=>`<div class="kcard" data-lid="${l.id}" onclick="openLead(${l.id})">
-        <div class="kcard-name">${l.name}</div>
+        <div class="kcard-name">${l.name}${l.product?'<span style="font-weight:400;color:var(--t3)"> — '+l.product+'</span>':''}</div>
         <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">
           <span class="tag t-${l.delivery==='cargo'?'cargo':'white'}" style="font-size:9px">${l.delivery==='cargo'?'Карго':'Белая'}</span>
           ${l.stage===6&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000?'<span class="tag t-warn" style="font-size:9px">🔔 Перезвонить</span>':l.stage===6?'<span class="tag" style="font-size:9px;background:var(--obg);color:var(--ot)">⏳ Ждём</span>':''}
