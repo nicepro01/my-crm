@@ -596,7 +596,7 @@ function checkKpReminders(){
 const _now=new Date();let hCY=_now.getFullYear(),hCM=_now.getMonth(),hCV='month',hCS=toStr(),hCF='all';
 let fCY=_now.getFullYear(),fCM=_now.getMonth(),fCV='month',fCS=toStr();
 let wCY=_now.getFullYear(),wCM=_now.getMonth(),wCV='month',wCS=toStr();
-let curF=null,curTab='overview',curLead=null,curClient=null,curOrder=null,taskFrom=null,curWT='overview',statPeriod='all',statFrom='',statTo='',clientSort='default';
+let curF=null,curTab='overview',curLead=null,curClient=null,curOrder=null,taskFrom=null,curWT='overview',statPeriod='all',statFrom='',statTo='',clientSort='default',clientView='list';
 let dragId=null,dragColId=null,dragType=null; // dragType: 'lead'|'content'|'proj'
 
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
@@ -1085,6 +1085,56 @@ function delContent(id){db.work.content=db.work.content.filter(x=>x.id!==id);clo
 
 // ── CLIENTS ────────────────────────────────────────────
 function setClientSort(s){clientSort=s;renderWork();}
+function renderClientsKanban(){
+  // Columns: active order stages (exclude Завершено)
+  const KANBAN_STAGES=[0,1,2,3,4,5,6,7,8,9];
+  const stageColors=['var(--t3)','var(--ac)','var(--ac)','var(--ac)','var(--or)','var(--or)','var(--ac)','var(--ac)','var(--ac)','var(--gt)'];
+  // Group clients by their most advanced active order stage
+  const groups={};
+  KANBAN_STAGES.forEach(s=>groups[s]=[]);
+  const noOrder=[];
+  db.work.clients.forEach(c=>{
+    const active=c.orders.filter(o=>o.stage<10);
+    if(!active.length){noOrder.push(c);return;}
+    const maxStage=Math.max(...active.map(o=>o.stage));
+    if(groups[maxStage])groups[maxStage].push({c,stage:maxStage});
+    else groups[0].push({c,stage:0});
+  });
+  // Only show columns that have clients
+  const usedStages=KANBAN_STAGES.filter(s=>groups[s]&&groups[s].length);
+  return`<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:10px;align-items:flex-start">
+    ${usedStages.map(s=>`<div style="background:var(--sf);border-radius:14px;min-width:180px;width:180px;flex-shrink:0;border:var(--bd)">
+      <div style="padding:10px 12px;border-bottom:var(--bd);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;font-weight:700;color:${stageColors[s]}">${OS[s]}</div>
+        <span style="background:var(--s3);color:var(--t2);border-radius:20px;padding:2px 7px;font-size:11px">${groups[s].length}</span>
+      </div>
+      <div style="padding:8px;display:flex;flex-direction:column;gap:6px">
+        ${groups[s].map(({c})=>{
+          const active=c.orders.filter(o=>o.stage<10);
+          const rev=c.orders.reduce((s2,o)=>{const m=((+o.payment.priceY||0)-(+o.payment.costY||0))*(+o.payment.rateIn||0);const fx=(+o.payment.priceY||0)*((+o.payment.rateOut||0)-(+o.payment.rateIn||0));const cm=(+o.payment.priceY||0)*(+o.payment.rateOut||0)*(+o.payment.comm||0)/100;return s2+m+fx+cm;},0);
+          return`<div onclick="openClient(${c.id})" style="background:var(--s2);border-radius:10px;padding:10px;cursor:pointer;border:var(--bd)">
+            <div style="font-size:13px;font-weight:600;margin-bottom:3px">${c.name}</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:5px">${c.clientId}${c.product?' · '+c.product:''}</div>
+            ${active.map(o=>`<div style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--s3);color:var(--t2);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.name}</div>`).join('')}
+            ${rev?`<div style="font-size:11px;color:var(--gt);margin-top:4px;font-weight:600">${fmtR(rev)}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('')}
+    ${noOrder.length?`<div style="background:var(--sf);border-radius:14px;min-width:180px;width:180px;flex-shrink:0;border:var(--bd)">
+      <div style="padding:10px 12px;border-bottom:var(--bd);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;font-weight:700;color:var(--t3)">Без заказов</div>
+        <span style="background:var(--s3);color:var(--t2);border-radius:20px;padding:2px 7px;font-size:11px">${noOrder.length}</span>
+      </div>
+      <div style="padding:8px;display:flex;flex-direction:column;gap:6px">
+        ${noOrder.map(c=>`<div onclick="openClient(${c.id})" style="background:var(--s2);border-radius:10px;padding:10px;cursor:pointer;border:var(--bd)">
+          <div style="font-size:13px;font-weight:600">${c.name}</div>
+          <div style="font-size:11px;color:var(--t3)">${c.clientId}</div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+  </div>`;
+}
 function renderClients(){
   const stageColor=(s)=>{
     if(s===9)return{bg:'rgba(52,199,89,.15)',c:'var(--gt)'};
@@ -1112,6 +1162,11 @@ function renderClients(){
   // Collect all unique stages present in orders
   const allStages=[...new Set(db.work.clients.flatMap(c=>c.orders.map(o=>o.stage)))].sort((a,b)=>a-b);
   const filterLabel=clientSort==='default'?'Все клиенты':clientSort==='profit'?'По прибыли':clientSort==='done'?'Завершённые':OS[+clientSort]||'Все клиенты';
+  const viewToggle=`<div style="display:flex;gap:6px;margin-bottom:10px">
+    <button onclick="clientView='list';renderWork()" style="padding:5px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${clientView==='list'?'var(--ac)':'var(--s3)'};color:${clientView==='list'?'#fff':'var(--t2)'}">☰ Список</button>
+    <button onclick="clientView='kanban';renderWork()" style="padding:5px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${clientView==='kanban'?'var(--ac)':'var(--s3)'};color:${clientView==='kanban'?'#fff':'var(--t2)'}">⬜ Канбан</button>
+  </div>`;
+  if(clientView==='kanban')return viewToggle+renderClientsKanban();
   return`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <div style="position:relative">
       <button onclick="document.getElementById('client-filter-dd').classList.toggle('hidden')" style="padding:6px 14px;border-radius:20px;border:.5px solid var(--bd2);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;background:${clientSort!=='default'?'var(--ac)':'var(--s3)'};color:${clientSort!=='default'?'#fff':'var(--t2)'};display:flex;align-items:center;gap:6px">
