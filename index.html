@@ -1341,6 +1341,10 @@ function openSendToAssistant(sourceType, sourceId){
         <span id="at-files-label" style="color:var(--t3);font-size:12px">не выбрано</span>
       </label>
     </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div class="fg" style="flex:1;margin-bottom:0"><label>Приоритет</label><select id="at-priority" style="width:100%;padding:9px 11px;border:.5px solid var(--bd2);border-radius:var(--rs);background:var(--sf);color:var(--t1);font-size:14px;font-family:inherit"><option value="normal">📋 Обычный</option><option value="urgent">🔥 Срочно</option><option value="low">📌 Низкий</option></select></div>
+      <div class="fg" style="flex:1;margin-bottom:0"><label>Дедлайн</label><input id="at-deadline" type="date" style="width:100%;padding:9px 11px;border:.5px solid var(--bd2);border-radius:var(--rs);background:var(--sf);color:var(--t1);font-size:14px;font-family:inherit"></div>
+    </div>
     <div id="at-upload-status" style="display:none;font-size:12px;color:var(--ac);padding:8px 12px;background:rgba(0,122,255,.08);border-radius:8px;margin-bottom:8px">⏳ Загружаю файлы...</div>
     <div class="mact">
       <button class="pb pb-s" onclick="closeModal()">Отмена</button>
@@ -1407,6 +1411,8 @@ async function submitSendToAssistant(sourceType){
     ? [_lead?.name,_lead?.product].filter(Boolean).join(' — ')
     : [_client?.name,_client?.clientId].filter(Boolean).join(' ');
 
+  const priority=document.getElementById('at-priority')?.value||'normal';
+  const deadline=document.getElementById('at-deadline')?.value||'';
   closeModal();showToast('⏳ Отправляю задание...');
 
   // Check if task already exists
@@ -1562,7 +1568,19 @@ async function checkAssistantResults(){
       }
     }
   });
-  if(changed)saveDB();
+  if(changed){
+    saveDB();
+    // Notify about completed tasks
+    const completed=data.filter(t=>t.status==='done'||t.status==='accepted');
+    if(completed.length){
+      const names=completed.map(t=>t.title).join(', ');
+      showToast('🎉 Ассистент выполнил: '+names);
+      // Browser notification
+      if('Notification' in window&&Notification.permission==='granted'){
+        new Notification('✅ Задание выполнено!',{body:names});
+      }
+    }
+  }
 }
 
 function setStatPeriod(p){statPeriod=p;renderWork();}
@@ -1842,7 +1860,21 @@ function saveLeadKpLink(){
 }
 function addLC(){const txt=document.getElementById('lc-i').value.trim();if(!txt)return;db.work.leads.find(x=>x.id===curLead).comments.push({text:txt,ts:Date.now()});renderLead();showToast('Комментарий добавлен');}
 function convertLead(){const l=db.work.leads.find(x=>x.id===curLead);if(!l)return;const nid=Math.max(0,...db.work.clients.map(c=>c.id))+1;const leadComments=l.comments.map(c=>({...c,note:'(из лида)'}));db.work.clients.push({id:nid,clientId:'ID-00'+nid,name:l.name,phone:l.phone,messenger:l.messenger,product:l.product,delivery:l.delivery,source:l.source,comments:leadComments,orders:[]});db.work.leads=db.work.leads.filter(x=>x.id!==curLead);saveDB();showToast(`✅ ${l.name} стал клиентом!`);showScreen('s-work');renderWork();workTab('clients');updateFC();}
-async function delLead(id){const l=db.work.leads.find(x=>x.id===id);if(l?.assistantTaskId&&_sb){try{await _sb.from('assistant_tasks').delete().eq('id',l.assistantTaskId);}catch(e){console.warn(e);}}db.work.leads=db.work.leads.filter(x=>x.id!==id);saveDB();showScreen('s-work');renderWork();showToast('Лид удалён');}
+async function delLead(id){
+  const l=db.work.leads.find(x=>x.id===id);
+  if(!confirm('Удалить лид'+( l?.name?' "'+l.name+'"':'')+' ?'))return;
+  // Delete assistant task first
+  if(l?.assistantTaskId){
+    showToast('⏳ Удаляю...');
+    if(_sb){
+      const{error}=await _sb.from('assistant_tasks').delete().eq('id',l.assistantTaskId);
+      if(error)console.warn('Failed to delete assistant task:',error);
+      else{_asTasks=_asTasks.filter(x=>x.id!==l.assistantTaskId);}
+    }
+  }
+  db.work.leads=db.work.leads.filter(x=>x.id!==id);
+  saveDB();showScreen('s-work');renderWork();showToast('Лид удалён');
+}
 
 // ── CLIENT CARD with analytics ─────────────────────────
 function openClient(id){curClient=id;const c=db.work.clients.find(x=>x.id===id);document.getElementById('client-title').textContent=c.name;renderClient();showScreen('s-client');}
