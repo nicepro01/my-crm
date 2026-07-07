@@ -1842,7 +1842,7 @@ function saveLeadKpLink(){
 }
 function addLC(){const txt=document.getElementById('lc-i').value.trim();if(!txt)return;db.work.leads.find(x=>x.id===curLead).comments.push({text:txt,ts:Date.now()});renderLead();showToast('Комментарий добавлен');}
 function convertLead(){const l=db.work.leads.find(x=>x.id===curLead);if(!l)return;const nid=Math.max(0,...db.work.clients.map(c=>c.id))+1;const leadComments=l.comments.map(c=>({...c,note:'(из лида)'}));db.work.clients.push({id:nid,clientId:'ID-00'+nid,name:l.name,phone:l.phone,messenger:l.messenger,product:l.product,delivery:l.delivery,source:l.source,comments:leadComments,orders:[]});db.work.leads=db.work.leads.filter(x=>x.id!==curLead);saveDB();showToast(`✅ ${l.name} стал клиентом!`);showScreen('s-work');renderWork();workTab('clients');updateFC();}
-function delLead(id){db.work.leads=db.work.leads.filter(x=>x.id!==id);showScreen('s-work');renderWork();showToast('Лид удалён');}
+async function delLead(id){const l=db.work.leads.find(x=>x.id===id);if(l?.assistantTaskId&&_sb){try{await _sb.from('assistant_tasks').delete().eq('id',l.assistantTaskId);}catch(e){console.warn(e);}}db.work.leads=db.work.leads.filter(x=>x.id!==id);saveDB();showScreen('s-work');renderWork();showToast('Лид удалён');}
 
 // ── CLIENT CARD with analytics ─────────────────────────
 function openClient(id){curClient=id;const c=db.work.clients.find(x=>x.id===id);document.getElementById('client-title').textContent=c.name;renderClient();showScreen('s-client');}
