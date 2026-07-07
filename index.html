@@ -790,7 +790,7 @@ function delProjCard(colId,cardId){const col=db.projects.board.cols.find(c=>c.id
 function renderTasksHTML(d,f){
   const pend=d.tasks.filter(t=>!t.done),done=d.tasks.filter(t=>t.done);
   const row=(t,idx)=>`<div class="ti sort-item" data-sort-idx="${idx}">
-    <div class="cb${t.done?' done':''}" onclick="qToggle('${f}',${t.id})">${t.done?'✓':''}</div>
+    <div class="cb${t.done?' done':''}" onclick="event.stopPropagation();qToggle('${f}',${t.id})">${t.done?'✓':''}</div>
     <div class="pdot" style="background:${PC[t.priority]}"></div>
     <div style="flex:1;cursor:pointer" onclick="openTaskCard('${f}',${t.id},'${f}')">
       <div style="font-size:14px;font-weight:500${t.done?';text-decoration:line-through;color:var(--t3)':''}">${t.name}</div>
@@ -1017,7 +1017,7 @@ function initLeadDrag(){
   },100);
 }
 
-function renderWTasksHTML(){const d=db.work,pend=d.tasks.filter(t=>!t.done),done=d.tasks.filter(t=>t.done);const row=(t,idx)=>`<div class="ti sort-item" data-sort-idx="${idx}"><div class="cb${t.done?' done':''}" onclick="wqT(${t.id})">${t.done?'✓':''}</div><div class="pdot" style="background:${PC[t.priority]}"></div><div style="flex:1;cursor:pointer" onclick="openTaskCard('work',${t.id},'work')"><div style="font-size:14px;font-weight:500${t.done?';text-decoration:line-through;color:var(--t3)':''}">${t.name}</div><div style="font-size:12px;color:var(--t2);margin-top:2px">${t.due?fmtDate(t.due):'-'}${t.time?' · '+t.time:''}</div></div><button class="pb pb-s pb-sm" onclick="openEditTask('work',${t.id})">✏️</button></div>`;return`<div style="margin-bottom:10px"><button class="pb pb-p pb-sm" onclick="openAddWT()">+ Задача</button></div>${pend.map((t,i)=>row(t,i)).join('')}${done.length?`<div class="sl" style="margin-top:10px">Выполнено</div>${done.map((t,i)=>row(t,pend.length+i)).join('')}`:''}${!d.tasks.length?'<div class="empty">Нет задач</div>':''}`;}
+function renderWTasksHTML(){const d=db.work,pend=d.tasks.filter(t=>!t.done),done=d.tasks.filter(t=>t.done);const row=(t,idx)=>`<div class="ti sort-item" data-sort-idx="${idx}"><div class="cb${t.done?' done':''}" onclick="event.stopPropagation();wqT(${t.id})">${t.done?'✓':''}</div><div class="pdot" style="background:${PC[t.priority]}"></div><div style="flex:1;cursor:pointer" onclick="openTaskCard('work',${t.id},'work')"><div style="font-size:14px;font-weight:500${t.done?';text-decoration:line-through;color:var(--t3)':''}">${t.name}</div><div style="font-size:12px;color:var(--t2);margin-top:2px">${t.due?fmtDate(t.due):'-'}${t.time?' · '+t.time:''}</div></div><button class="pb pb-s pb-sm" onclick="openEditTask('work',${t.id})">✏️</button></div>`;return`<div style="margin-bottom:10px"><button class="pb pb-p pb-sm" onclick="openAddWT()">+ Задача</button></div>${pend.map((t,i)=>row(t,i)).join('')}${done.length?`<div class="sl" style="margin-top:10px">Выполнено</div>${done.map((t,i)=>row(t,pend.length+i)).join('')}`:''}${!d.tasks.length?'<div class="empty">Нет задач</div>':''}`;}
 function wqT(id){const t=db.work.tasks.find(x=>x.id===id);if(t){t.done=!t.done;renderWork();}}
 
 // ── CONTENT PLAN ───────────────────────────────────────
