@@ -1438,7 +1438,7 @@ async function syncAssistantTaskTitles(){
 }
 async function checkAssistantResults(){
   if(!_sb)return;
-  const{data}=await _sb.from('assistant_tasks').select('*').eq('status','done');
+  const{data}=await _sb.from('assistant_tasks').select('*').in('status',['done','accepted','payment']);
   if(!data)return;
   let changed=false;
   data.forEach(t=>{
