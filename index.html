@@ -396,6 +396,25 @@ const DB_ROW_ID     = 'my-crm';               // можно не менять
 // ── CLOUDINARY ──────────────────────────────────────────
 const CLD_CLOUD  = 'dnz0oai3c';
 const CLD_PRESET = '123456';
+// Расшифровка звонков идёт через защищённую Netlify-функцию (ключ OpenAI хранится там, не в коде).
+const TRANSCRIBE_URL='https://serene-crostata-af9c9b.netlify.app/.netlify/functions/transcribe';
+async function transcribeAudio(file, leadName){
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+  const resp=await fetch(TRANSCRIBE_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({audioBase64:base64,mimeType:file.type,fileName:file.name,leadName:leadName||''})
+  });
+  if(!resp.ok){const t=await resp.text();throw new Error('Расшифровка вернула '+resp.status+'. '+t.slice(0,160));}
+  const data=await resp.json();
+  if(data.error)throw new Error(data.error);
+  return {transcript:data.transcript||'',summary:data.summary||''};
+}
 
 async function uploadToCloudinary(file){
   const fd=new FormData();
@@ -468,10 +487,35 @@ async function loadFromSupabase() {
       // Мержим загруженные данные в db
       const saved = data.payload;
       Object.assign(db, saved);
+      migrateLeadStages();
       return true;
     }
   } catch(e) { console.warn('Supabase load error:', e); }
   return false;
+}
+
+// Миграция: воронка лидов расширена (добавлены "Касание 2" и "Не взял трубку").
+// Старые индексы >=2 (Перезвонить и дальше) сдвигаются, чтобы лиды остались на своих этапах.
+function migrateLeadStages() {
+  if (!db.work || !db.work.leads) return;
+  if (db.work._leadStageMigV2) return; // уже мигрировано
+  // Старая воронка (9 эл.): 0 Новый лид,1 Касание,2 Перезвонить,3 Инфо собрана,4 Поиск товара,5 Товар найден,6 КП готово,7 КП отправлено,8 Оплата; CONVERT=8? нет — старые CONVERT/FAIL были в самих данных
+  // Раньше CONVERT_STAGE=8 и FAIL_STAGE=9 в предыдущей версии перед этим апдейтом.
+  // Новая воронка (11 эл.): вставлены "Касание 2" (после Касание) и "Не взял трубку" (после Перезвонить).
+  // Отображение старого stage -> новый:
+  const map = {0:0, 1:1, 2:3, 3:5, 4:6, 5:7, 6:8, 7:9, 8:10, 9:12}; // 8=старый Оплата->10; 9=старый FAIL(9)->12
+  db.work.leads.forEach(l => {
+    if (typeof l.stage === 'number' && map[l.stage] !== undefined) {
+      const newStage = map[l.stage];
+      if (l.stageLog) l.stageLog.forEach(e => {
+        if (map[e.from] !== undefined) e.from = map[e.from];
+        if (map[e.to]   !== undefined) e.to   = map[e.to];
+      });
+      l.stage = newStage;
+    }
+  });
+  db.work._leadStageMigV2 = true;
+  saveDB();
 }
 
 async function saveToSupabase() {
@@ -499,9 +543,9 @@ const DOWS=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 const FM={life:{name:'Жизнь',em:'❤️',bc:'bg-life'},work:{name:'Работа',em:'💼',bc:'bg-work'},projects:{name:'Проекты',em:'📁',bc:'bg-proj'}};
 
 // Lead stages: added "Сделка провалена" as special last stage
-const LS=['Новый лид','Касание','Перезвонить','Инфо собрана','Поиск товара','Товар найден','КП готово','КП отправлено','Оплата'];
-const CONVERT_STAGE=8;
-const FAIL_STAGE=9;
+const LS=['Новый лид','Касание','Касание 2','Перезвонить','Не взял трубку','Инфо собрана','Поиск товара','Товар найден','КП готово','КП отправлено','Оплата'];
+const CONVERT_STAGE=11;
+const FAIL_STAGE=12;
 
 const OS=['Поиск товара','Товар найден','Подготовка КП','КП готово','КП отправлено','Оплата','Выкуплен','На складе','Упаковка','В пути','Завершено'];
 const SRCS=['Холодный звонок','Сайт','Telegram','Instagram','WhatsApp','Другое'];
@@ -589,7 +633,7 @@ function checkKpReminders(){
   return db.work.leads.filter(l=>{
     if(l.stage!==6||l.noAnswer)return false;
     // In real app would check timestamp; simulate with noAnswer flag
-    return l.noAnswer===false&&l.stage===6;
+    return l.noAnswer===false&&l.stage===8;
   });
 }
 
@@ -876,7 +920,7 @@ function renderWOverview(){
 
 // ── LEADS with fail stage ──────────────────────────────
 function renderLeads(){
-  const warn=db.work.leads.filter(l=>l.stage===6&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000).length; // КП без ответа 24ч+
+  const warn=db.work.leads.filter(l=>l.stage===8&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000).length; // КП без ответа 24ч+
   const srcMap={};db.work.leads.forEach(l=>{if(l.source){srcMap[l.source]=(srcMap[l.source]||0)+1;}});
   const srcStats=Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).map(([s,n])=>`<span style="font-size:11px;background:var(--s3);color:var(--t2);padding:3px 9px;border-radius:20px">${s}: ${n}</span>`).join('');
   const stats=`<div class="stats"><div class="stat"><div class="stat-l">Лидов</div><div class="stat-v">${db.work.leads.filter(l=>l.stage<CONVERT_STAGE&&l.stage!==FAIL_STAGE).length}</div></div><div class="stat"><div class="stat-l">Клиентов</div><div class="stat-v">${db.work.clients.length}</div></div><div class="stat"><div class="stat-l">Конверсия</div><div class="stat-v">${Math.round(db.work.clients.length/(db.work.leads.filter(l=>l.stage!==FAIL_STAGE).length+db.work.clients.length||1)*100)}%</div></div><div class="stat"><div class="stat-l" style="color:${warn?'var(--or)':''}">КП без ответа</div><div class="stat-v" style="color:${warn?'var(--or)':''}">${warn}</div></div></div>`;
@@ -884,8 +928,8 @@ function renderLeads(){
   // Reminder banner — only show leads where KP was sent 24h+ ago
   const now=Date.now();
   const KP_DELAY=24*60*60*1000;
-  const kpWarn=db.work.leads.filter(l=>l.stage===6&&l.kpSentAt&&(now-l.kpSentAt)>=KP_DELAY&&!l.kpDismissed);
-  const kpPending=db.work.leads.filter(l=>l.stage===6&&(!l.kpSentAt||(now-l.kpSentAt)<KP_DELAY));
+  const kpWarn=db.work.leads.filter(l=>l.stage===8&&l.kpSentAt&&(now-l.kpSentAt)>=KP_DELAY&&!l.kpDismissed);
+  const kpPending=db.work.leads.filter(l=>l.stage===8&&(!l.kpSentAt||(now-l.kpSentAt)<KP_DELAY));
   function kpHoursLeft(l){if(!l.kpSentAt)return 0;const left=KP_DELAY-(now-l.kpSentAt);return Math.max(0,Math.ceil(left/3600000));}
   function kpHoursPassed(l){if(!l.kpSentAt)return 0;return Math.floor((now-l.kpSentAt)/3600000);}
   const reminderBanner=kpWarn.length?`<div style="background:var(--rbg);border:.5px solid var(--rd);border-radius:var(--rs);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:4px">
@@ -905,7 +949,7 @@ function renderLeads(){
         ${l.product?`<div style="font-size:10px;color:var(--t1);opacity:.8;margin-bottom:3px">${l.product}</div>`:''}
         <div style="display:flex;gap:3px;flex-wrap:wrap">
           ${l.delivery!=='cargo'?'<span class="tag t-white" style="font-size:9px">Белая</span>':''}
-          ${l.stage===6&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000?'<span class="tag t-warn" style="font-size:9px">🔔 Перезвонить</span>':l.stage===6?'<span class="tag" style="font-size:9px;background:var(--obg);color:var(--ot)">⏳ Ждём</span>':''}
+          ${l.stage===8&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000?'<span class="tag t-warn" style="font-size:9px">🔔 Перезвонить</span>':l.stage===8?'<span class="tag" style="font-size:9px;background:var(--obg);color:var(--ot)">⏳ Ждём</span>':''}
         </div>
       </div>`).join('')}
     </div>`;
@@ -1034,7 +1078,7 @@ function initLeadDrag(){
           if(reason!==null)l.failReason=reason;
           showToast(`💔 ${l.name} — сделка провалена`);
         } else {
-          const _prev5=l.stage;l.stage=stage;if(stage===6){l.kpSentAt=Date.now();l.noAnswer=false;}else{l.kpSentAt=null;l.noAnswer=false;}if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:_prev5,to:stage,ts:Date.now()});
+          const _prev5=l.stage;l.stage=stage;if(stage===8){l.kpSentAt=Date.now();l.noAnswer=false;}else{l.kpSentAt=null;l.noAnswer=false;}if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:_prev5,to:stage,ts:Date.now()});
         }
         dragId=null;dragType=null;renderWork();
       });
@@ -1542,7 +1586,7 @@ async function checkAssistantResults(){
         if(aPhotos.length){if(!l.photos)l.photos=[];aPhotos.forEach(u=>{if(!l.photos.includes(u))l.photos.push(u);});changed=true;}
         if(aComments.length){if(!l.comments)l.comments=[];aComments.forEach(c=>{if(!l.comments.find(x=>x.ts===c.ts))l.comments.push(c);changed=true;});}
         // Move to Товар найден only if still on Поиск товара
-        if(l.stage===4){
+        if(l.stage===6){
           l.stage=5;
           if(!l.stageLog)l.stageLog=[];
           l.stageLog.push({from:4,to:5,ts:Date.now(),note:'Товар найден ассистентом'+(resultLink?' 🔗':'')});
@@ -1715,7 +1759,7 @@ function renderWStats(){
 }
 
 // ── LEAD CARD ──────────────────────────────────────────
-function openLead(id){curLead=id;const l=db.work.leads.find(x=>x.id===id);document.getElementById('lead-title').textContent=l.name;document.getElementById('conv-btn').style.display=l.stage>=7&&l.stage!==FAIL_STAGE?'':'none';renderLead();showScreen('s-lead');}
+function openLead(id){curLead=id;const l=db.work.leads.find(x=>x.id===id);document.getElementById('lead-title').textContent=l.name;document.getElementById('conv-btn').style.display=l.stage>=9&&l.stage!==FAIL_STAGE?'':'none';renderLead();showScreen('s-lead');}
 function renderLead(){
   const l=db.work.leads.find(x=>x.id===curLead);
   const isFailed=l.stage===FAIL_STAGE;
@@ -1741,7 +1785,7 @@ function renderLead(){
         <div class="fr"><span class="fl">Товар</span><span class="fv">${l.product}</span></div>
         <div class="fr"><span class="fl">Доставка</span><span class="fv">${l.delivery==='cargo'?'Карго':'Белая'}</span></div>
       </div>
-      ${l.stage===4?`<div class="cs" style="background:rgba(175,82,222,.08);border:.5px solid rgba(175,82,222,.3);border-radius:var(--rs);padding:12px 14px;margin-bottom:6px">
+      ${l.stage===6?`<div class="cs" style="background:rgba(175,82,222,.08);border:.5px solid rgba(175,82,222,.3);border-radius:var(--rs);padding:12px 14px;margin-bottom:6px">
         <div style="font-size:13px;font-weight:600;color:#bf7fe0;margin-bottom:10px">🔍 Поиск товара — отправить задание ассистенту</div>
         ${l.assistantTaskId?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-size:12px;color:var(--t2)">Задание #${l.assistantTaskId} отправлено</span>
@@ -1752,7 +1796,7 @@ function renderLead(){
       </div>`:''}
               </div>
       ${(()=>{
-        if(!l.assistantTaskId||l.stage===4)return'';
+        if(!l.assistantTaskId||l.stage===6)return'';
         const at=_asTasks.find(x=>x.id===l.assistantTaskId);
         if(!at)return'';
         const statusColors={new:'var(--t3)',in_progress:'var(--ac)',done:'var(--gt)',accepted:'var(--gt)',payment:'var(--or)',revision:'var(--rd)'};
@@ -1840,7 +1884,7 @@ function renderLead(){
       <button class="pb pb-s" style="color:var(--rd)" onclick="delLead(${l.id})">🗑 Удалить</button>
     </div>`;
 }
-function setLS(id,stage){const l=db.work.leads.find(x=>x.id===id);const wasKP=l.stage===6;const prevStage=l.stage;l.stage=stage;if(stage===6&&!wasKP){l.kpSentAt=Date.now();l.noAnswer=false;l.kpDismissed=false;}else if(stage!==6){l.kpSentAt=null;l.noAnswer=false;}if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:prevStage,to:stage,ts:Date.now()});document.getElementById('conv-btn').style.display=stage>=7&&stage!==FAIL_STAGE?'':'none';saveDB();renderLead();}
+function setLS(id,stage){const l=db.work.leads.find(x=>x.id===id);const wasKP=l.stage===8;const prevStage=l.stage;l.stage=stage;if(stage===8&&!wasKP){l.kpSentAt=Date.now();l.noAnswer=false;l.kpDismissed=false;}else if(stage!==8){l.kpSentAt=null;l.noAnswer=false;}if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:prevStage,to:stage,ts:Date.now()});document.getElementById('conv-btn').style.display=stage>=9&&stage!==FAIL_STAGE?'':'none';saveDB();renderLead();}
 function failLead(id){const l=db.work.leads.find(x=>x.id===id);const reason=prompt('Причина провала сделки:','');const prev=l.stage;l.stage=FAIL_STAGE;if(reason!==null)l.failReason=reason;if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:prev,to:FAIL_STAGE,ts:Date.now(),note:'Провалено: '+(reason||'')});document.getElementById('conv-btn').style.display='none';saveDB();renderLead();showToast('Сделка отмечена как провалена');}
 function reopenLead(id){const l=db.work.leads.find(x=>x.id===id);const prev=l.stage;l.stage=0;l.failReason='';if(!l.stageLog)l.stageLog=[];l.stageLog.push({from:prev,to:0,ts:Date.now(),note:'Возвращён в работу'});saveDB();renderLead();showToast('Лид возвращён в работу');}
 function openEditFailReason(id){const l=db.work.leads.find(x=>x.id===id);const r=prompt('Причина провала:',l.failReason||'');if(r!==null){l.failReason=r;renderLead();showToast('Причина обновлена');}}
@@ -2251,21 +2295,9 @@ function triggerCallUpload(){
         audioUrl=cldData.secure_url||'';
       }catch(e){console.warn('Cloudinary upload failed:',e);}
 
-      // Step 2: Transcribe with OpenAI
+      // Step 2: Расшифровка через OpenAI напрямую
       if(status)status.textContent='🎙 Расшифровываю звонок (~30 сек)...';
-      const base64=await new Promise((res,rej)=>{
-        const reader=new FileReader();
-        reader.onload=()=>res(reader.result.split(',')[1]);
-        reader.onerror=rej;
-        reader.readAsDataURL(file);
-      });
-      const resp=await fetch('/.netlify/functions/transcribe',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({audioBase64:base64,mimeType:file.type,fileName:file.name,leadName:l.name})
-      });
-      const data=await resp.json();
-      if(data.error)throw new Error(data.error);
+      const data=await transcribeAudio(file,l.name);
       if(!l.calls)l.calls=[];
       l.calls.push({ts:Date.now(),transcript:data.transcript,summary:data.summary,audioUrl});
       saveDB();
@@ -2566,7 +2598,7 @@ async function initApp() {
   setInterval(async()=>{await loadAssistantTasks();await checkAssistantResults();},30000);
   // Check for overdue KP leads (24h+) and show alert
   setTimeout(()=>{
-    const overdue=db.work.leads.filter(l=>l.stage===6&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000);
+    const overdue=db.work.leads.filter(l=>l.stage===8&&l.kpSentAt&&(Date.now()-l.kpSentAt)>=86400000);
     if(overdue.length){
       const names=overdue.map(l=>l.name).join(', ');
       showToast(`🔔 Перезвони! ${names}`);
