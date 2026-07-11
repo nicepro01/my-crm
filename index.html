@@ -397,7 +397,7 @@ const DB_ROW_ID     = 'my-crm';               // можно не менять
 const CLD_CLOUD  = 'dnz0oai3c';
 const CLD_PRESET = '123456';
 // Расшифровка звонков идёт через защищённую Netlify-функцию (ключ OpenAI хранится там, не в коде).
-const TRANSCRIBE_URL='https://serene-crostata-af9c9b.netlify.app/.netlify/functions/transcribe';
+const TRANSCRIBE_URL='https://crm-transcribe.lank2710.workers.dev';
 async function transcribeAudio(file, leadName){
   const base64=await new Promise((res,rej)=>{
     const reader=new FileReader();
